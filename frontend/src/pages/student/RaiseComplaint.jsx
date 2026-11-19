@@ -5,35 +5,52 @@ import "../../Dashboard.css";
 
 const RaiseComplaint = () => {
   const { addComplaint } = useContext(ComplaintContext);
-  const [title, setTitle] = useState("");
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState(null);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // ✅ Proper complaint submission function
+  const categories = [
+    { key: "Electrical Issues", icon: "fa-bolt" },
+    { key: "Plumbing and Water Supply", icon: "fa-tint" },
+    { key: "Cleanliness and Hygiene", icon: "fa-broom" },
+    { key: "Furniture and Room Maintenance", icon: "fa-chair" },
+    { key: "Security and Safety", icon: "fa-shield-alt" },
+    { key: "Other / General Complaints", icon: "fa-ellipsis-h" },
+  ];
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!title || !description) {
-      alert("Please fill in all fields.");
+    if (!category || !description) {
+      setStatusMsg("⚠ Please fill in all required fields.");
       return;
     }
 
     try {
-      // Send only valid fields to backend
-      await addComplaint({
-        title,
-        description,
-        category: "General", // optional
-        image_url: null, // optional, backend accepts null
-      });
+      setLoading(true);
+      const formData = new FormData();
+      formData.append("category", category);
+      formData.append("description", description);
+      formData.append("block", user?.block);
+      formData.append("room", user?.room);
+      if (file) formData.append("file", file);
 
-      alert("Complaint submitted successfully!");
-      setTitle("");
+      await addComplaint(formData);
+
+      setStatusMsg("✅ Complaint submitted successfully!");
+      setCategory("");
       setDescription("");
       setFile(null);
+      setTimeout(() => setStatusMsg(""), 3000);
     } catch (err) {
       console.error("❌ Error submitting complaint:", err);
-      alert("Server error while submitting complaint.");
+      setStatusMsg("❌ Server error while submitting complaint.");
+      setTimeout(() => setStatusMsg(""), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -44,38 +61,56 @@ const RaiseComplaint = () => {
         <h1 className="page-title">Raise Complaint</h1>
         <div className="complaint-form-card">
           <form onSubmit={handleSubmit}>
-            <label>Complaint Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter title"
-              required
-            />
+            <label style={{ fontWeight: 700, color: "#1e3a8a" }}>Complaint Category</label>
+            <div className="category-grid" style={{ marginTop: "8px" }}>
+              {categories.map((c) => (
+                <div
+                  key={c.key}
+                  className={`category-card ${category === c.key ? "selected" : ""}`}
+                  onClick={() => setCategory(c.key)}
+                >
+                  <i className={`fas ${c.icon}`} aria-hidden="true" />
+                  <p style={{ marginTop: "8px" }}>{c.key}</p>
+                </div>
+              ))}
+            </div>
 
-            <label>Description</label>
+            <label style={{ fontWeight: 700, color: "#1e3a8a" }}>Description</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={5}
-              placeholder="Describe problem"
+              placeholder="Describe your issue clearly"
               required
             />
 
-            <label>Attach File (optional)</label>
+            <label style={{ fontWeight: 700, color: "#1e3a8a" }}>Attach File (optional)</label>
             <div className="file-input-wrapper">
-              <button type="button" className="file-btn">
+              <button
+                type="button"
+                className="file-btn"
+                onClick={() => document.getElementById("fileInput").click()}
+              >
                 {file ? file.name : "Choose File"}
               </button>
               <input
+                id="fileInput"
                 type="file"
+                name="image"
+                style={{ display: "none" }}
                 onChange={(e) => setFile(e.target.files[0])}
               />
             </div>
 
-            <button type="submit" className="primary-btn">
-              Submit Complaint
+            <button type="submit" className="primary-btn" disabled={loading}>
+              {loading ? "Submitting..." : "Submit Complaint"}
             </button>
+
+            {statusMsg && (
+              <p className="status-msg" style={{ color: statusMsg.startsWith("✅") ? "green" : "red" }}>
+                {statusMsg}
+              </p>
+            )}
           </form>
         </div>
       </div>

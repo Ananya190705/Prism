@@ -1,23 +1,65 @@
-import express from 'express';
+import express from "express";
+import upload from "../middleware/upload.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+import { authorizeRole } from "../middleware/roleMiddleware.js";
+import { exportResolvedComplaintsCSV } from "../controllers/complaintController.js";
 import {
   createComplaint,
   getMyComplaints,
   getAllComplaints,
   updateComplaintStatus,
-  getComplaintById
-} from '../controllers/complaintController.js';
-
-import { authMiddleware } from '../middleware/authMiddleware.js';
+  getComplaintById,
+  getResolvedComplaints,
+  notifyWarden,
+  deleteComplaintsByMonth
+} from "../controllers/complaintController.js";
 
 const router = express.Router();
 
-// Student actions
-router.post('/', authMiddleware, createComplaint);          // create complaint
-router.get('/my', authMiddleware, getMyComplaints);         // get student's own complaints
-router.get('/:id', authMiddleware, getComplaintById);
+/* ----------------------------
+      COMPLAINT CREATION
+----------------------------- */
+router.post(
+  "/",
+  authMiddleware,
+  upload.single("file"),
+  createComplaint
+);
 
-// Admin/Warden actions - require role check on frontend/backed if needed
-router.get('/', authMiddleware, getAllComplaints);          // all complaints (warden/admin)
-router.put('/:id', authMiddleware, updateComplaintStatus);  // update status (warden/admin)
+/* ----------------------------
+      COMPLAINT MANAGEMENT
+----------------------------- */
+router.get("/my", authMiddleware, getMyComplaints);
+
+router.get("/resolved", authMiddleware, getResolvedComplaints);
+
+router.post("/notify-warden", authMiddleware, notifyWarden);
+
+router.get("/", authMiddleware, getAllComplaints);
+
+/* ----------------------------
+      DYNAMIC ROUTES
+----------------------------- */
+router.get("/:id", authMiddleware, getComplaintById);
+
+router.put(
+  "/:id",
+  authMiddleware,
+  authorizeRole(["warden", "chief_warden", "admin"]),
+  updateComplaintStatus
+);
+
+router.delete(
+  "/delete-by-month",
+  authMiddleware,
+  authorizeRole(["admin", "chief_warden"]),
+  deleteComplaintsByMonth
+);
+router.get(
+  "/export/resolved",
+  authMiddleware,
+  authorizeRole(["admin", "chief_warden"]),
+  exportResolvedComplaintsCSV
+);
 
 export default router;

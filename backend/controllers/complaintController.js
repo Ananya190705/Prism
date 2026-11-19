@@ -1,171 +1,237 @@
-import pool from "../config/db.js";
 import { sendMail } from "../utils/mailer.js";
+import { Parser } from "json2csv";
+import Complaint from "../models/complaint.js";
+import User from "../models/user.js";
 
-/* =====================================================
-   📍 1. CREATE COMPLAINT (Student)
-===================================================== */
+/* ================= CREATE COMPLAINT ================= */
 export const createComplaint = async (req, res) => {
   try {
-    const { title, description } = req.body;
     const user_id = req.user.id;
+    const { category, description } = req.body;
 
-    const [result] = await pool.query(
-      "INSERT INTO complaints (user_id, title, description) VALUES (?, ?, ?)",
-      [user_id, title, description]
-    );
+    const user = await User.findById(user_id);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    const [rows] = await pool.query("SELECT * FROM complaints WHERE id = ?", [result.insertId]);
-    return res.status(201).json(rows[0]);
+    const image_url = req.file ? req.file.filename : null;
+
+    const complaint = await Complaint.create({
+      user_id,
+      category,
+      description,
+      block: user.block,
+      room: user.room,
+      image_url
+    });
+
+    res.json({
+      message: "Complaint submitted successfully",
+      complaintId: complaint._id
+    });
+
   } catch (err) {
-    console.error("❌ Error creating complaint:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error(err);
+    res.status(500).json({ message: "Error creating complaint" });
   }
 };
 
-/* =====================================================
-   📍 2. GET MY COMPLAINTS (Student)
-===================================================== */
+/* ================= GET MY COMPLAINTS ================= */
 export const getMyComplaints = async (req, res) => {
   try {
     const user_id = req.user.id;
-    const [rows] = await pool.query(
-      "SELECT * FROM complaints WHERE user_id = ? ORDER BY created_at DESC",
-      [user_id]
-    );
-    return res.json(rows);
+
+    const complaints = await Complaint.find({ user_id })
+      .sort({ createdAt: -1 });
+
+    res.json(complaints);
+
   } catch (err) {
-    console.error("❌ Error fetching student complaints:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error(err);
+    res.status(500).json({ message: "Error fetching complaints" });
   }
 };
 
-/* =====================================================
-   📍 3. GET ALL COMPLAINTS (Role Based)
-===================================================== */
+/* ================= GET ALL COMPLAINTS ================= */
 export const getAllComplaints = async (req, res) => {
   try {
     const role = req.user.role;
-    const userId = req.user.id;
 
-    let query = "";
-    let values = [];
+    if (!role) return res.status(401).json({ message: "Unauthorized" });
+
+    // Escalate old complaints
+    await Complaint.updateMany(
+      {
+        status: "pending",
+        createdAt: { $lt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) }
+      },
+      { status: "Escalated" }
+    );
+
+    let complaints;
 
     if (role === "student") {
-      // 🧍 Student → only their own complaints
-      query = `
-        SELECT c.*, u.name AS student_name, u.email AS student_email
-        FROM complaints c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.user_id = ?
-        ORDER BY c.created_at DESC
-      `;
-      values = [userId];
-    } 
-    else if (role === "warden") {
-      // 👨‍🏫 Warden → all complaints
-      query = `
-        SELECT c.*, u.name AS student_name, u.email AS student_email
-        FROM complaints c
-        JOIN users u ON c.user_id = u.id
-        ORDER BY c.created_at DESC
-      `;
-    } 
-    else if (role === "chief_warden" || role === "admin") {
-      // 👩‍💼 Chief Warden → only complaints pending > 3 days
-      query = `
-        SELECT c.*, u.name AS student_name, u.email AS student_email
-        FROM complaints c
-        JOIN users u ON c.user_id = u.id
-        WHERE c.status = 'Pending'
-        AND TIMESTAMPDIFF(DAY, c.created_at, NOW()) > 3
-        ORDER BY c.created_at DESC
-      `;
-    } 
-    else {
-      return res.status(403).json({ message: "Unauthorized role" });
+      complaints = await Complaint.find({ user_id: req.user.id })
+        .populate("user_id")
+        .sort({ createdAt: -1 });
+    } else {
+      complaints = await Complaint.find()
+        .populate("user_id")
+        .sort({ createdAt: -1 });
     }
 
-    const [rows] = await pool.query(query, values);
+    res.json(complaints);
 
-    // 🕒 Auto mark as "Escalated" for complaints older than 3 days (warden & student)
-    if (role === "warden" || role === "student") {
-      const now = new Date();
-      for (const c of rows) {
-        if (c.status === "Pending" && c.created_at) {
-          const diffDays = (now - new Date(c.created_at)) / (1000 * 60 * 60 * 24);
-          if (diffDays > 3) {
-            await pool.query("UPDATE complaints SET status = 'Escalated' WHERE id = ?", [c.id]);
-          }
-        }
-      }
-    }
-
-    return res.json(rows);
   } catch (err) {
-    console.error("❌ Error fetching all complaints:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error(err);
+    res.status(500).json({ message: "Error fetching complaints" });
   }
 };
 
-/* =====================================================
-   📍 4. UPDATE STATUS (Warden/Admin)
-===================================================== */
-export const updateComplaintStatus = async (req, res) => {
-  try {
-    const complaintId = req.params.id;
-    const { status, remark } = req.body;
-
-    await pool.query("UPDATE complaints SET status = ?, remark = ? WHERE id = ?", [
-      status || "Pending",
-      remark || null,
-      complaintId,
-    ]);
-
-    const [[updated]] = await pool.query(
-      `SELECT c.*, u.email AS student_email, u.name AS student_name
-       FROM complaints c JOIN users u ON c.user_id = u.id WHERE c.id = ?`,
-      [complaintId]
-    );
-
-    // ✅ Notify student by email when resolved
-    if (status === "Resolved") {
-      const subject = `Your complaint #${updated.id} has been resolved`;
-      const html = `
-        <p>Hi ${updated.student_name},</p>
-        <p>Your complaint titled "<b>${updated.title}</b>" has been marked as <b>Resolved</b>.</p>
-        <p><b>Remark:</b> ${remark || "—"}</p>
-        <p>Thank you,<br/>PRISM Team</p>
-      `;
-      try {
-        await sendMail({ to: updated.student_email, subject, html });
-      } catch (mailErr) {
-        console.error("Mail send error:", mailErr);
-      }
-    }
-
-    const [rows] = await pool.query("SELECT * FROM complaints WHERE id = ?", [complaintId]);
-    return res.json(rows[0]);
-  } catch (err) {
-    console.error("❌ Error updating complaint:", err);
-    return res.status(500).json({ message: "Server error" });
-  }
-};
-
-/* =====================================================
-   📍 5. GET SINGLE COMPLAINT BY ID
-===================================================== */
+/* ================= GET SINGLE ================= */
 export const getComplaintById = async (req, res) => {
   try {
-    const id = req.params.id;
-    const [rows] = await pool.query(
-      `SELECT c.*, u.name AS student_name, u.email AS student_email
-       FROM complaints c JOIN users u ON c.user_id = u.id WHERE c.id = ?`,
-      [id]
-    );
-    if (rows.length === 0) return res.status(404).json({ message: "Not found" });
-    return res.json(rows[0]);
+    const complaint = await Complaint.findById(req.params.id)
+      .populate("user_id");
+
+    if (!complaint) {
+      return res.status(404).json({ message: "Complaint not found" });
+    }
+
+    res.json(complaint);
+
   } catch (err) {
-    console.error("❌ Error fetching complaint by ID:", err);
-    return res.status(500).json({ message: "Server error" });
+    console.error(err);
+    res.status(500).json({ message: "Error fetching complaint" });
+  }
+};
+
+/* ================= GET RESOLVED ================= */
+export const getResolvedComplaints = async (req, res) => {
+  try {
+    const complaints = await Complaint.find({ status: "resolved" })
+      .populate("user_id")
+      .sort({ updatedAt: -1 });
+
+    res.json(complaints);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error fetching resolved complaints" });
+  }
+};
+
+/* ================= NOTIFY WARDEN ================= */
+export const notifyWarden = async (req, res) => {
+  try {
+    const { complaintId } = req.body;
+
+    const complaint = await Complaint.findById(complaintId);
+    if (!complaint) return res.status(404).json({ message: "Not found" });
+
+    const wardens = await User.find({ role: "warden" });
+
+    for (const w of wardens) {
+      await sendMail({
+        to: w.email,
+        subject: `Complaint ${complaintId}`,
+        html: `<p>${complaint.description}</p>`
+      });
+    }
+
+    res.json({ message: "Wardens notified" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error notifying" });
+  }
+};
+
+/* ================= UPDATE STATUS ================= */
+export const updateComplaintStatus = async (req, res) => {
+  try {
+    const { role } = req.user;
+    if (!["warden", "chief_warden", "admin"].includes(role)) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const { status, remark } = req.body;
+
+    const complaint = await Complaint.findByIdAndUpdate(
+      req.params.id,
+      {
+        status,
+        remark,
+        resolved_date: status === "resolved" ? new Date() : null
+      },
+      { new: true }
+    ).populate("user_id");
+
+    if (status === "resolved") {
+      await sendMail({
+        to: complaint.user_id.email,
+        subject: "Complaint Resolved",
+        html: `<p>Your complaint is resolved</p>`
+      });
+    }
+
+    res.json(complaint);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error updating complaint" });
+  }
+};
+
+/* ================= DELETE BY MONTH ================= */
+export const deleteComplaintsByMonth = async (req, res) => {
+  try {
+    const { month, year } = req.body;
+
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 1);
+
+    const result = await Complaint.deleteMany({
+      createdAt: { $gte: start, $lt: end }
+    });
+
+    res.json({
+      message: "Deleted",
+      deleted: result.deletedCount
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error deleting" });
+  }
+};
+
+/* ================= EXPORT CSV ================= */
+export const exportResolvedComplaintsCSV = async (req, res) => {
+  try {
+    const complaints = await Complaint.find({ status: "resolved" })
+      .populate("user_id");
+
+    const data = complaints.map(c => ({
+      id: c._id,
+      category: c.category,
+      description: c.description,
+      status: c.status,
+      remark: c.remark,
+      created_at: c.createdAt,
+      resolved_date: c.resolved_date,
+      student_email: c.user_id?.email,
+      block: c.block,
+      room: c.room
+    }));
+
+    const parser = new Parser();
+    const csv = parser.parse(data);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("resolved.csv");
+    res.send(csv);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error exporting CSV" });
   }
 };

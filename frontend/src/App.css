@@ -1,42 +1,217 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* ----------------------------------------------------------
+   GLOBAL & PAGE BACKGROUND
+---------------------------------------------------------- */
+body, html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Full-page background for Login & Sign In */
+.background-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image: url("../slider5.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 0;
+}
+
+/* ----------------------------------------------------------
+   WELCOME SCREEN
+---------------------------------------------------------- */
+
+.welcome-bg {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image: url("../slider5.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.welcome-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 0;
+}
+
+/* Card */
+.welcome-card {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  padding: 50px 40px;
+  border-radius: 20px;
   text-align: center;
+  max-width: 350px;
+  width: 90%;
+  transition: transform 0.3s ease;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.welcome-card:hover {
+  transform: translateY(-5px);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Floating Logo Animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.welcome-logo {
+  animation: float 3s ease-in-out infinite;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 15px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  background-color: transparent;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
 }
 
-.card {
-  padding: 2em;
+/* Gradient Title */
+.welcome-title {
+  font-size: 2.5rem;
+  font-family: Georgia, serif;
+  background: linear-gradient(90deg, #6a0dad, #ff2d95, #800080);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: bold;
+  letter-spacing: 2px;
+  margin: 20px 0;
+  animation: gradientShift 6s ease infinite;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-.read-the-docs {
-  color: #888;
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ----------------------------------------------------------
+   BUTTONS
+---------------------------------------------------------- */
+
+.welcome-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.welcome-login-button,
+.welcome-signup-button {
+  padding: 15px 45px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: white;
+  background: linear-gradient(90deg, #2575fc, #6a11cb);
+  box-shadow: 0 6px 15px rgba(39, 114, 252, 0.6);
+  transition: transform 0.2s ease, background 0.3s ease;
+}
+
+.welcome-login-button:hover,
+.welcome-signup-button:hover {
+  background: linear-gradient(90deg, #6a11cb, #2575fc);
+  transform: scale(1.05);
+}
+
+/* Normal buttons (Send OTP, Verify OTP, Signup submit) */
+button {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(90deg, #2575fc, #6a11cb);
+  border: none;
+  color: white;
+  font-size: 17px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: linear-gradient(90deg, #843cd0, #2575fc);
+}
+
+/* ----------------------------------------------------------
+   LOGIN + SIGN IN FORMS
+---------------------------------------------------------- */
+
+.login-section {
+  position: relative;
+  z-index: 1;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 50px 60px;
+  width: 400px;
+  max-width: 90%;
+  text-align: center;
+  border-radius: 14px;
+  border: 1.5px solid rgba(210, 190, 170, 0.6);
+  box-shadow: 0 8px 20px rgba(80, 70, 60, 0.25);
+}
+
+/* Inputs */
+input[type="email"],
+input[type="text"] {
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  border: 1px solid #c7bcad;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+input:focus {
+  border: 1.5px solid #7a6451;
+}
+
+/* Role Dropdown */
+select {
+  width: 100%;
+  padding: 10px 12px;
+  margin: 10px 0 20px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 15px;
+  background-color: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+select:focus {
+  border-color: #007bff;
+}
+
+select option[disabled] {
+  color: #777;
 }

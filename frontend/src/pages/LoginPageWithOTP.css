@@ -118,3 +118,32 @@
         transform: translateY(0);
     }
 }
+
+.auth-switch {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #333;
+}
+
+.auth-link {
+    color: #007bff;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.auth-link:hover {
+    color: #0056b3;
+}
+
+.status-msg {
+  margin-top: 10px;
+  text-align: center;
+  color: #2563eb;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.otp-container {
+  outline: none;
+}

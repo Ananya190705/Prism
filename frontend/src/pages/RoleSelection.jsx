@@ -19,9 +19,10 @@ const RoleSelection = () => {
     const role = user.role;
 
     // 🔹 Smart redirection based on role
-    if (role === "student") {
-      navigate("/student/dashboard");
-    } else if (role === "warden") {
+   
+    if (role === "student") navigate("/student/raise-complaint");
+
+    else if (role === "warden") {
       navigate("/warden/dashboard");
     } else if (role === "admin" || role === "chief_warden") {
       navigate("/admin/dashboard");

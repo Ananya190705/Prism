@@ -43,3 +43,7 @@ Thumbs.db
 # Dependency lock (optional — only ignore if you don’t want to commit it)
 # package-lock.json
 # yarn.lock
+
+# User-uploaded complaint images
+backend/uploads/*
+!backend/uploads/.gitkeep
